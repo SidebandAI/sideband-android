@@ -78,13 +78,6 @@ Sideband.track(
 
 Sideband calls are fire-and-forget. Events are batched and synced in the background.
 
-## Flush
-
-Request an immediate background sync:
-
-```kotlin
-Sideband.flush()
-```
 
 ## Requirements
 
