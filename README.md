@@ -53,6 +53,8 @@ Sideband.configure(
 
 ## Show Pulses
 
+### Compose Apps
+
 Wrap your Compose app with `SidebandPulseHost`:
 
 ```kotlin
@@ -62,6 +64,33 @@ SidebandPulseHost {
     AppContent()
 }
 ```
+
+### Android Views Apps
+
+For Activity, Fragment, or XML/View apps, install the overlay into your View hierarchy:
+
+```kotlin
+import com.sideband.sdk.ui.SidebandPulseOverlayView
+
+class MainActivity : AppCompatActivity() {
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        setContentView(R.layout.main)
+
+        SidebandPulseOverlayView.install(this)
+    }
+}
+```
+
+Fragments can install into a top-level `FrameLayout` overlay container:
+
+```kotlin
+val root = requireView().findViewById<FrameLayout>(R.id.root_container)
+SidebandPulseOverlayView.install(root)
+```
+
+The Views API uses Sideband's Compose overlay internally, but host apps do not need to write Compose UI code.
+When installing into a specific root view, pass a `FrameLayout` so the overlay can position the FAB and sheet without blocking host content.
 
 ### Customize The Pulse FAB
 
@@ -124,7 +153,6 @@ Sideband calls are fire-and-forget. Events are batched and synced in the backgro
 ## Requirements
 
 - Android `minSdk` 24+
-- Jetpack Compose UI
 - A Sideband API key
 
 The SDK includes the required `INTERNET` permission in its manifest.
