@@ -8,7 +8,7 @@ Add the SDK dependency:
 
 ```kotlin
 dependencies {
-    implementation("com.sideband:sideband-android:0.1.9")
+    implementation("com.sideband:sideband-android:1.1.0")
 }
 ```
 
