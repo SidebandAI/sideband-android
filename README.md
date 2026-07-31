@@ -8,7 +8,7 @@ Add the SDK dependency:
 
 ```kotlin
 dependencies {
-    implementation("com.sideband:sideband-android:1.1.0")
+    implementation("com.sideband:sideband-android:1.2.0")
 }
 ```
 
@@ -91,48 +91,6 @@ SidebandPulseOverlayView.install(root)
 
 The Views API uses Sideband's Compose overlay internally, but host apps do not need to write Compose UI code.
 When installing into a specific root view, pass a `FrameLayout` so the overlay can position the FAB and sheet without blocking host content.
-
-### Customize The Pulse FAB
-
-Pass a `SidebandFabStyle` to customize the Pulse floating action button colors and icon:
-
-```kotlin
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.layout.size
-import androidx.compose.material3.Icon
-import androidx.compose.material3.Surface
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.unit.dp
-import com.sideband.sdk.ui.SidebandFabStyle
-import com.sideband.sdk.ui.SidebandPulseHost
-
-SidebandPulseHost(
-    fabStyle = SidebandFabStyle(
-        icon = {
-            Surface(
-                modifier = Modifier.size(34.dp),
-                color = Color.White,
-                shape = CircleShape,
-            ) {
-                Icon(
-                    painter = painterResource(id = R.drawable.ic_brand_mark),
-                    contentDescription = null,
-                    tint = Color.Unspecified,
-                    modifier = Modifier.size(18.dp),
-                )
-            }
-        },
-        foregroundColor = Color(0xFF1953FF),
-        backgroundColor = Color(0xFFF7FAFF),
-    )
-) {
-    AppContent()
-}
-```
-
-`foregroundColor` controls the default glyph color and condensed countdown ring. `backgroundColor` controls the default FAB surface. If you provide `icon`, Sideband renders your composable inside the FAB instead of the default glyph.
 
 ## Track Events
 
