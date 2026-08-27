@@ -8,14 +8,14 @@ Add the SDK dependency:
 
 ```kotlin
 dependencies {
-    implementation("com.sideband:sideband-android:1.2.0")
+    implementation("com.sideband:sideband-android:1.2.1-rc.1")
 }
 ```
 
 HTML-wrapper apps that track with Google Tag Manager also add:
 
 ```kotlin
-implementation("com.sideband:sideband-android-webview:1.2.0")
+implementation("com.sideband:sideband-android-webview:1.2.1-rc.1")
 ```
 
 If you install from GitHub Packages, add the repository:
@@ -121,8 +121,8 @@ The bridge is **not** inside `com.sideband:sideband-android`. It ships on the sa
 
 ```kotlin
 dependencies {
-    implementation("com.sideband:sideband-android:1.2.0")
-    implementation("com.sideband:sideband-android-webview:1.2.0")
+    implementation("com.sideband:sideband-android:1.2.1-rc.1")
+    implementation("com.sideband:sideband-android-webview:1.2.1-rc.1")
 }
 ```
 
