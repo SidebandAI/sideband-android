@@ -112,7 +112,7 @@ Sideband.track(
 )
 ```
 
-Sideband retains the tagged user ID until you replace it or clear it on logout:
+Tagged user IDs may contain at most 256 characters. Sideband retains a valid tagged user ID until you replace it or clear it on logout. An overlong ID is rejected without replacing the in-memory or persisted identity and without scheduling a sync; an overlong ID persisted by an earlier SDK version is cleared when restored:
 
 ```kotlin
 Sideband.untagUser()
