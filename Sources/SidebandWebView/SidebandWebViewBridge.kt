@@ -5,7 +5,7 @@
 // edit them. Keep this file and SidebandWebViewBridgeMessage.kt together.
 //
 // Customization points:
-// - handlerName: JavascriptInterface name and window.<name>
+// - handlerName: WebMessageListener name and window.<name>
 // - javaScriptSource: injected window.Sideband API (tagUser / untagUser / track)
 // - WebViewBridgeMessage.parse: accepted payload shape and metadata coercion
 // - apply(_:): routing into Sideband.tagUser / untagUser / track
@@ -14,13 +14,20 @@
 
 package com.sideband.sdk.webview
 
+import android.net.Uri
+import android.os.Looper
 import android.util.Log
-import android.webkit.JavascriptInterface
 import android.webkit.WebView
+import androidx.annotation.UiThread
+import androidx.webkit.JavaScriptReplyProxy
 import androidx.webkit.ScriptHandler
+import androidx.webkit.WebMessageCompat
 import androidx.webkit.WebViewCompat
 import androidx.webkit.WebViewFeature
 import com.sideband.sdk.Sideband
+import java.lang.ref.WeakReference
+import java.net.URI
+import java.net.URISyntaxException
 import java.util.WeakHashMap
 
 private const val TAG = "Sideband"
@@ -32,10 +39,11 @@ public class SidebandWebViewBridgeInstallation internal constructor(
     private val uninstallHandler: () -> Unit,
 ) {
     /**
-     * Removes the JavascriptInterface from the WebView.
+     * Removes the web message listener and persistent document-start script from the WebView.
      *
-     * Injected `window.Sideband` scripts remain until the WebView navigates or is rebuilt.
+     * An already injected `window.Sideband` object remains inert until the WebView navigates or is rebuilt.
      */
+    @UiThread
     public fun uninstall() {
         uninstallHandler()
     }
@@ -45,35 +53,119 @@ public class SidebandWebViewBridgeInstallation internal constructor(
  * Installs a JavaScript bridge that forwards `window.Sideband` calls from a [WebView] into the shared client.
  *
  * Call [Sideband.configure] before installing the bridge, and call this before the WebView's first `load` so the
- * bridge is present when Google Tag Manager starts. If the current page is already loaded, the SDK also injects
+ * bridge is present when Google Tag Manager starts. If an allowed page is already loaded, the SDK also injects
  * `window.Sideband` immediately.
  *
  * Enable JavaScript on the WebView (`webView.settings.javaScriptEnabled = true`). The bridge does not enable it.
- *
- * The returned handle can be used to remove the JavascriptInterface during teardown. The bridge retains the
- * installation, so host apps do not need to retain the handle just to keep the bridge active.
+ * The installed WebView implementation must support AndroidX WebKit's web message listener and document-start
+ * script features. Install and uninstall the bridge on the main thread. Calls are accepted only from an allowed
+ * origin's main frame.
  *
  * @param webView Host [WebView] that loads the HTML wrapper.
- * @return Bridge installation handle, or `null` if Sideband has not been configured.
+ * @param allowedOrigins Non-empty allowlist of exact HTTP or HTTPS origins, such as
+ * `setOf("https://app.example.com", "https://staging.example.com:8443")`.
+ * @return Bridge installation handle, or `null` if Sideband is not configured, required WebView features are
+ * unavailable, or WebKit rejects installation.
+ * @throws IllegalArgumentException if an origin is not an exact HTTP or HTTPS origin. Wildcards, credentials,
+ * non-root paths, queries, and fragments are not accepted.
  */
-public fun Sideband.installWebViewBridge(webView: WebView): SidebandWebViewBridgeInstallation? {
+@UiThread
+public fun Sideband.installWebViewBridge(
+    webView: WebView,
+    allowedOrigins: Set<String>,
+): SidebandWebViewBridgeInstallation? {
+    checkMainThread()
+    val allowedOriginRules = validateAndNormalizeAllowedOrigins(allowedOrigins)
+
     if (!isConfigured) {
-        Log.e(TAG, "Sideband.installWebViewBridge(webView) called before Sideband.configure(...).")
+        Log.e(TAG, "Sideband.installWebViewBridge(...) called before Sideband.configure(...).")
+        return null
+    }
+
+    val missingFeatures = missingRequiredWebViewFeatures(WebViewFeature::isFeatureSupported)
+    if (missingFeatures.isNotEmpty()) {
+        Log.e(
+            TAG,
+            "Sideband WebView bridge requires unsupported WebView features: ${missingFeatures.joinToString()}.",
+        )
         return null
     }
 
     if (!webView.settings.javaScriptEnabled) {
-        Log.w(TAG, "Sideband.installWebViewBridge(webView) requires webView.settings.javaScriptEnabled = true.")
+        Log.w(TAG, "Sideband.installWebViewBridge(...) requires webView.settings.javaScriptEnabled = true.")
     }
 
     WebViewBridgeStore.existing(webView)?.let { existing ->
-        return existing.handle
+        if (existing.allowedOriginRules == allowedOriginRules) {
+            return existing.handle
+        }
+        existing.uninstall()
     }
 
-    val installation = WebViewBridgeInstallation(webView)
+    val installation = try {
+        WebViewBridgeInstallation.install(webView, allowedOriginRules)
+    } catch (exception: RuntimeException) {
+        Log.e(TAG, "Sideband WebView bridge installation failed.", exception)
+        return null
+    }
     WebViewBridgeStore.put(webView, installation)
     return installation.handle
 }
+
+internal fun missingRequiredWebViewFeatures(
+    isFeatureSupported: (String) -> Boolean,
+): List<String> = listOf(
+    WebViewFeature.WEB_MESSAGE_LISTENER,
+    WebViewFeature.DOCUMENT_START_SCRIPT,
+).filterNot(isFeatureSupported)
+
+internal fun validateAndNormalizeAllowedOrigins(allowedOrigins: Set<String>): Set<String> {
+    require(allowedOrigins.isNotEmpty()) { "allowedOrigins must contain at least one exact HTTP or HTTPS origin." }
+    return allowedOrigins.mapTo(linkedSetOf(), ::validateAndNormalizeOrigin)
+}
+
+private fun validateAndNormalizeOrigin(origin: String): String {
+    require('*' !in origin) { "WebView bridge origin must not contain a wildcard: $origin" }
+
+    val uri = try {
+        URI(origin)
+    } catch (_: URISyntaxException) {
+        throw IllegalArgumentException("Invalid WebView bridge origin: $origin")
+    }
+    val scheme = uri.scheme?.lowercase()
+    require(scheme == "http" || scheme == "https") {
+        "WebView bridge origin must use http or https: $origin"
+    }
+    require(!uri.isOpaque && uri.host != null) { "Invalid WebView bridge origin: $origin" }
+    require(uri.rawUserInfo == null) { "WebView bridge origin must not contain credentials: $origin" }
+    require(uri.rawPath.isNullOrEmpty() || uri.rawPath == "/") {
+        "WebView bridge origin must not contain a non-root path: $origin"
+    }
+    require(uri.rawQuery == null) { "WebView bridge origin must not contain a query: $origin" }
+    require(uri.rawFragment == null) { "WebView bridge origin must not contain a fragment: $origin" }
+    require(!uri.rawAuthority.orEmpty().endsWith(':')) { "Invalid WebView bridge origin port: $origin" }
+    require(uri.port == -1 || uri.port in 1..65_535) { "Invalid WebView bridge origin port: $origin" }
+
+    val host = uri.host.lowercase().let { value ->
+        if (':' in value && !value.startsWith('[')) "[$value]" else value
+    }
+    val port = uri.port.takeUnless { it == -1 || (scheme == "http" && it == 80) || (scheme == "https" && it == 443) }
+    return buildString {
+        append(scheme)
+        append("://")
+        append(host)
+        if (port != null) {
+            append(':')
+            append(port)
+        }
+    }
+}
+
+internal fun shouldAcceptWebMessage(
+    sourceOrigin: String,
+    isMainFrame: Boolean,
+    allowedOriginRules: Set<String>,
+): Boolean = isMainFrame && normalizedSourceOrigin(sourceOrigin) in allowedOriginRules
 
 internal object WebViewBridgeStore {
     private val lock = Any()
@@ -84,7 +176,7 @@ internal object WebViewBridgeStore {
     }
 
     fun put(webView: WebView, installation: WebViewBridgeInstallation) = synchronized(lock) {
-        installations[webView] = installation
+        installations.put(webView, installation)
     }
 
     fun remove(webView: WebView) = synchronized(lock) {
@@ -92,57 +184,79 @@ internal object WebViewBridgeStore {
     }
 
     fun reset() {
-        val current = synchronized(lock) { installations.values.toList() }
+        val current = synchronized(lock) {
+            installations.values.toList().also { installations.clear() }
+        }
         for (installation in current) {
             installation.uninstall()
         }
     }
 }
 
-internal class WebViewBridgeInstallation(
+internal class WebViewBridgeInstallation private constructor(
     webView: WebView,
+    val allowedOriginRules: Set<String>,
 ) {
     val handle = SidebandWebViewBridgeInstallation { uninstall() }
 
-    var isInstalled: Boolean = true
+    var isInstalled: Boolean = false
         private set
 
-    private var webView: WebView? = webView
-    private val jsInterface = SidebandJsInterface(::handleMessage)
+    private val webView = WeakReference(webView)
     private var documentStartScript: ScriptHandler? = null
 
-    init {
-        install(webView)
+    private val messageListener = WebViewCompat.WebMessageListener {
+            _: WebView,
+            message: WebMessageCompat,
+            sourceOrigin: Uri,
+            isMainFrame: Boolean,
+            _: JavaScriptReplyProxy,
+        ->
+        if (!shouldAcceptWebMessage(sourceOrigin.toString(), isMainFrame, allowedOriginRules)) {
+            Log.w(TAG, "Ignoring Sideband WebView message from a disallowed frame or origin.")
+            return@WebMessageListener
+        }
+        message.data?.let(::handleMessage)
     }
 
     fun uninstall() {
+        checkMainThread()
         if (!isInstalled) {
             return
         }
-        isInstalled = false
-        val current = webView
-        current?.removeJavascriptInterface(handlerName)
+        val current = webView.get()
         documentStartScript?.remove()
         documentStartScript = null
         if (current != null) {
+            WebViewCompat.removeWebMessageListener(current, handlerName)
             WebViewBridgeStore.remove(current)
         }
-        webView = null
+        isInstalled = false
+        webView.clear()
     }
 
     private fun install(webView: WebView) {
-        webView.removeJavascriptInterface(handlerName)
-        webView.addJavascriptInterface(jsInterface, handlerName)
-
-        if (WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT)) {
+        var listenerAdded = false
+        try {
+            WebViewCompat.addWebMessageListener(webView, handlerName, allowedOriginRules, messageListener)
+            listenerAdded = true
             documentStartScript = WebViewCompat.addDocumentStartJavaScript(
                 webView,
                 javaScriptSource,
-                setOf("*"),
+                allowedOriginRules,
             )
+            webView.evaluateJavascript(javaScriptSource, null)
+            isInstalled = true
+        } catch (exception: RuntimeException) {
+            runCatching { documentStartScript?.remove() }
+                .onFailure { Log.e(TAG, "Failed to roll back Sideband document-start script.", it) }
+            documentStartScript = null
+            if (listenerAdded) {
+                runCatching { WebViewCompat.removeWebMessageListener(webView, handlerName) }
+                    .onFailure { Log.e(TAG, "Failed to roll back Sideband web message listener.", it) }
+            }
+            throw exception
         }
-
-        webView.evaluateJavascript(javaScriptSource, null)
     }
 
     private fun handleMessage(body: String) {
@@ -161,39 +275,47 @@ internal class WebViewBridgeInstallation(
     companion object {
         const val handlerName: String = "sideband"
 
+        fun install(webView: WebView, allowedOriginRules: Set<String>): WebViewBridgeInstallation {
+            return WebViewBridgeInstallation(webView, allowedOriginRules).also { it.install(webView) }
+        }
+
         val javaScriptSource: String
             get() = """
-                (() => {
-                	if (window !== window.top) return;
-                	if (window.Sideband) return;
-                	const handler = window.$handlerName;
-                	if (!handler) return;
-                	const post = (payload) => handler.postMessage(JSON.stringify(payload));
-                	window.Sideband = {
-                		tagUser: (userID) => {
-                			if (userID == null) return;
-                			post({ action: "tagUser", userID: String(userID) });
-                		},
-                		untagUser: () => post({ action: "untagUser" }),
-                		track: (name, metadata) => {
-                			if (name == null || String(name).trim() === "") return;
-                			post({
-                				action: "track",
-                				name: String(name),
-                				metadata: metadata && typeof metadata === "object" ? metadata : {}
-                			});
-                		}
-                	};
+				(() => {
+					if (window !== window.top) return;
+					const owner = "__sidebandAndroidBridge";
+					if (window.Sideband && window.Sideband[owner] !== true) return;
+					const handler = window.$handlerName;
+					if (!handler) return;
+					const post = (payload) => handler.postMessage(JSON.stringify(payload));
+					const api = {
+						tagUser: (userID) => {
+							if (userID == null) return;
+							post({ action: "tagUser", userID: String(userID) });
+						},
+						untagUser: () => post({ action: "untagUser" }),
+						track: (name, metadata) => {
+							if (name == null || String(name).trim() === "") return;
+							post({
+								action: "track",
+								name: String(name),
+								metadata: metadata && typeof metadata === "object" ? metadata : {}
+							});
+						}
+					};
+					Object.defineProperty(api, owner, { value: true });
+					window.Sideband = api;
                 })();
             """.trimIndent()
     }
 }
 
-private class SidebandJsInterface(
-    private val onMessage: (String) -> Unit,
-) {
-    @JavascriptInterface
-    fun postMessage(body: String) {
-        onMessage(body)
+private fun normalizedSourceOrigin(sourceOrigin: String): String? = runCatching {
+    validateAndNormalizeOrigin(sourceOrigin)
+}.getOrNull()
+
+private fun checkMainThread() {
+    check(Looper.myLooper() == Looper.getMainLooper()) {
+        "Sideband WebView bridge installation and teardown must run on the main thread."
     }
 }

@@ -168,7 +168,7 @@ The bridge is not part of `com.sideband:sideband-android`. It ships as a Maven a
 
 ### Install the Bridge and Pulse Overlay
 
-Configure Sideband, enable JavaScript, install the bridge before the WebView's first `load`, and install the native pulse overlay. The bridge does not enable JavaScript.
+Configure Sideband, enable JavaScript, install the bridge before the WebView's first `load`, and install the native pulse overlay. Installation requires a non-empty allowlist of exact `http` or `https` origins. The bridge does not enable JavaScript.
 
 ```kotlin
 import com.sideband.sdk.Sideband
@@ -182,9 +182,17 @@ Sideband.configure(
     )
 )
 webView.settings.javaScriptEnabled = true
-Sideband.installWebViewBridge(webView)
+Sideband.installWebViewBridge(
+    webView = webView,
+    allowedOrigins = setOf(
+        "https://app.example.com",
+        "https://staging.example.com:8443",
+    ),
+)
 SidebandPulseOverlayView.install(this)
 ```
+
+Origins must include the scheme and may include a port. Wildcards, credentials, non-root paths, queries, and fragments are rejected. Install and uninstall the bridge on the main thread. The bridge requires a current Android System WebView with AndroidX WebKit web-message-listener and persistent document-start-script support; installation returns `null` and installs nothing when either feature is unavailable. Messages from iframes and origins outside the allowlist are rejected natively.
 
 Pulses appear in the native overlay above the WebView.
 
