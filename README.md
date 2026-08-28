@@ -17,7 +17,7 @@ Add the SDK dependency:
 
 ```kotlin
 dependencies {
-    implementation("com.sideband:sideband-android:1.2.1-rc.2")
+    implementation("com.sideband:sideband-android:1.2.1-rc.3")
 }
 ```
 
@@ -159,8 +159,8 @@ Add the WebView artifact at the same version as the core SDK:
 
 ```kotlin
 dependencies {
-    implementation("com.sideband:sideband-android:1.2.1-rc.2")
-    implementation("com.sideband:sideband-android-webview:1.2.1-rc.2")
+    implementation("com.sideband:sideband-android:1.2.1-rc.3")
+    implementation("com.sideband:sideband-android-webview:1.2.1-rc.3")
 }
 ```
 
