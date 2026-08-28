@@ -1,8 +1,17 @@
 # Sideband Android SDK
 
-Add Sideband Pulse prompts and event tracking to your Android app.
+Sideband adds in-app Pulse prompts and event tracking to Android apps.
 
-## Install
+## Get Started
+
+### Requirements
+
+- Android `minSdk` 24+
+- A Sideband API key
+
+The SDK includes the required `INTERNET` permission in its manifest.
+
+### Install
 
 Add the SDK dependency:
 
@@ -10,12 +19,6 @@ Add the SDK dependency:
 dependencies {
     implementation("com.sideband:sideband-android:1.2.1-rc.2")
 }
-```
-
-HTML-wrapper apps that track with Google Tag Manager also add:
-
-```kotlin
-implementation("com.sideband:sideband-android-webview:1.2.1-rc.2")
 ```
 
 If you install from GitHub Packages, add the repository:
@@ -41,7 +44,7 @@ gpr.user=YOUR_GITHUB_USERNAME
 gpr.token=YOUR_GITHUB_TOKEN
 ```
 
-## Configure
+### Configure
 
 Configure Sideband once when your app starts:
 
@@ -52,14 +55,13 @@ import com.sideband.sdk.core.ClientConfiguration
 Sideband.configure(
     ClientConfiguration(
         apiKey = "YOUR_API_KEY",
-        appVersion = BuildConfig.VERSION_NAME,
     )
 )
 ```
 
-## Show Pulses
+### Present Pulses
 
-### Compose Apps
+#### Compose
 
 Wrap your Compose app with `SidebandPulseHost`:
 
@@ -71,7 +73,7 @@ SidebandPulseHost {
 }
 ```
 
-### Android Views Apps
+#### Android Views
 
 For Activity, Fragment, or XML/View apps, install the overlay into your View hierarchy:
 
@@ -95,15 +97,14 @@ val root = requireView().findViewById<FrameLayout>(R.id.root_container)
 SidebandPulseOverlayView.install(root)
 ```
 
-The Views API uses Sideband's Compose overlay internally, but host apps do not need to write Compose UI code.
-When installing into a specific root view, pass a `FrameLayout` so the overlay can position the FAB and sheet without blocking host content.
+The Views API uses Sideband's Compose overlay internally, but host apps do not need to write Compose UI code. When installing into a specific root view, pass a `FrameLayout` so the overlay can position the FAB and sheet without blocking host content.
 
-## Track Events
+### Identify Users and Track Events
 
-Identify users and track events directly from your app code:
+Use a stable host-app user identifier, then track the events Sideband should use for targeting:
 
 ```kotlin
-Sideband.tagUser("user_123")
+Sideband.tagUser("user-123")
 
 Sideband.track(
     eventName = "checkout_started",
@@ -111,13 +112,50 @@ Sideband.track(
 )
 ```
 
+Sideband retains the tagged user ID until you replace it or clear it on logout:
+
+```kotlin
+Sideband.untagUser()
+```
+
 Sideband calls are fire-and-forget. Events are batched and synced in the background.
 
-## HTML wrapper apps (Google Tag Manager)
+### Control Pulse Presentation
 
-If product logic lives in a `WebView`, keep the API key and pulse UI native. Web and GTM only call `window.Sideband`. The same GTM container works on the iOS wrapper.
+Use a delegate when you need to decide whether a pulse should appear now:
 
-The bridge is **not** inside `com.sideband:sideband-android`. It ships on the same public release as a Maven artifact and as source under `Sources/SidebandWebView/`. Add both artifacts at the same version:
+```kotlin
+import com.sideband.sdk.core.ClientDelegate
+import com.sideband.sdk.models.PendingPulse
+import com.sideband.sdk.models.PulsePresentationDecision
+
+class PulseGate : ClientDelegate {
+    override suspend fun clientShouldPresentPulse(
+        pulse: PendingPulse,
+    ): PulsePresentationDecision {
+        return PulsePresentationDecision.SHOW_NOW
+    }
+}
+```
+
+Configure Sideband with the delegate:
+
+```kotlin
+Sideband.configure(
+    configuration = ClientConfiguration(apiKey = "YOUR_API_KEY"),
+    delegate = PulseGate(),
+)
+```
+
+Return `SHOW_NOW` to present immediately, `NOT_NOW` to skip this opportunity, or `NEVER` to decline the pulse permanently.
+
+## WebView Integration
+
+Use the Sideband WebView bridge when your app loads product content in a `WebView`. The bridge exposes `window.Sideband` to the page while the API key, event delivery, and pulse UI remain native.
+
+### Add WebView Support
+
+Add the WebView artifact at the same version as the core SDK:
 
 ```kotlin
 dependencies {
@@ -126,7 +164,11 @@ dependencies {
 }
 ```
 
-**Native (once).** Configure Sideband, enable JavaScript, attach the bridge before the WebView's first `load`, and install the pulse overlay. The bridge does not enable JavaScript.
+The bridge is not part of `com.sideband:sideband-android`. It ships as a Maven artifact and as source under `Sources/SidebandWebView/` on the same public release.
+
+### Install the Bridge and Pulse Overlay
+
+Configure Sideband, enable JavaScript, install the bridge before the WebView's first `load`, and install the native pulse overlay. The bridge does not enable JavaScript.
 
 ```kotlin
 import com.sideband.sdk.Sideband
@@ -137,7 +179,6 @@ import com.sideband.sdk.webview.installWebViewBridge
 Sideband.configure(
     ClientConfiguration(
         apiKey = "YOUR_API_KEY",
-        appVersion = BuildConfig.VERSION_NAME,
     )
 )
 webView.settings.javaScriptEnabled = true
@@ -145,11 +186,34 @@ Sideband.installWebViewBridge(webView)
 SidebandPulseOverlayView.install(this)
 ```
 
-Pulses still present in the native overlay, over the WebView.
+Pulses appear in the native overlay above the WebView.
 
-**GTM (no app release for new events).** Add Custom HTML tags. `{{Event}}` and `{{User ID}}` are GTM variables you already have or create (Built-In Event, Data Layer variable).
+### Use the JavaScript API
 
-Track — trigger All Custom Events (or the events Sideband should target). Skip built-in `gtm.*` events:
+After the bridge is installed, code in the page can identify users and track events:
+
+```javascript
+window.Sideband.tagUser("user-123")
+window.Sideband.track("checkout_started", { plan: "pro" })
+```
+
+Clear the identity when the user logs out:
+
+```javascript
+window.Sideband.untagUser()
+```
+
+Metadata scalar values are converted to strings. Nested values are ignored.
+
+To customize the handler name, injected JavaScript, or payload parsing, copy `Sources/SidebandWebView/` into the host app and stop depending on `sideband-android-webview`.
+
+## Google Tag Manager
+
+Complete the WebView integration first. Google Tag Manager can then call the same `window.Sideband` API without requiring a new app release for each tracked event.
+
+### Forward Events
+
+In Google Tag Manager, create a Custom HTML tag triggered by All Custom Events, or only by the events Sideband should receive. Skip GTM's built-in `gtm.*` events.
 
 ```html
 <script>
@@ -161,7 +225,11 @@ Track — trigger All Custom Events (or the events Sideband should target). Skip
 </script>
 ```
 
-To pass properties, add GTM Data Layer variables and a second argument:
+`{{Event}}` is GTM's built-in Event variable.
+
+### Forward Event Metadata
+
+Create GTM Data Layer variables for the properties you want to send, then pass them as the second argument. Metadata scalar values are sent to Sideband as strings.
 
 ```html
 <script>
@@ -173,7 +241,11 @@ To pass properties, add GTM Data Layer variables and a second argument:
 </script>
 ```
 
-Identify — Custom HTML tag on login / container load when a user ID is available:
+`{{Value}}` is a Data Layer variable supplied by the host app.
+
+### Identify Users
+
+Create a Custom HTML tag that runs on login, or on container load when a stable user ID is available:
 
 ```html
 <script>
@@ -183,13 +255,4 @@ Identify — Custom HTML tag on login / container load when a user ID is availab
 </script>
 ```
 
-On logout, call `Sideband.untagUser()` from native, or `window.Sideband.untagUser()` from a GTM tag.
-
-To customize handler name, injected JavaScript, or payload parsing, copy `Sources/SidebandWebView/` into the host app and stop depending on `sideband-android-webview`.
-
-## Requirements
-
-- Android `minSdk` 24+
-- A Sideband API key
-
-The SDK includes the required `INTERNET` permission in its manifest.
+`{{User ID}}` is a Data Layer variable supplied by the host app. On logout, call `Sideband.untagUser()` from native code or `window.Sideband.untagUser()` from a GTM tag.
