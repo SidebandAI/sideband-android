@@ -1,6 +1,6 @@
 // Default WebView bridge for HTML-wrapper apps that track with Google Tag Manager.
 //
-// This module is not part of com.sideband:sideband-android. It ships as source in the public GitHub repo
+// This module is not part of ai.sideband:sideband-android. It ships as source in the public GitHub repo
 // (Sources/SidebandWebView). Use sideband-android-webview as-is, or copy these files into the host app and
 // edit them. Keep this file and SidebandWebViewBridgeMessage.kt together.
 //
@@ -12,7 +12,7 @@
 //
 // The GTM Custom HTML tags in the README must keep using the same window.Sideband methods.
 
-package com.sideband.sdk.webview
+package ai.sideband.sdk.webview
 
 import android.net.Uri
 import android.os.Looper
@@ -24,7 +24,7 @@ import androidx.webkit.ScriptHandler
 import androidx.webkit.WebMessageCompat
 import androidx.webkit.WebViewCompat
 import androidx.webkit.WebViewFeature
-import com.sideband.sdk.Sideband
+import ai.sideband.sdk.Sideband
 import java.lang.ref.WeakReference
 import java.net.URI
 import java.net.URISyntaxException

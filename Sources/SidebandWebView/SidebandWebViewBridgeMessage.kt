@@ -3,7 +3,7 @@
 // Customize here if GTM posts a different shape than { action, userID, name, metadata }.
 // Metadata values must be strings for Sideband.track; scalars are stringified and nested values are dropped.
 
-package com.sideband.sdk.webview
+package ai.sideband.sdk.webview
 
 import org.json.JSONArray
 import org.json.JSONObject

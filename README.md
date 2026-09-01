@@ -17,40 +17,28 @@ Add the SDK dependency:
 
 ```kotlin
 dependencies {
-    implementation("com.sideband:sideband-android:1.2.1")
+    implementation("ai.sideband:sideband-android:1.3.0-rc.1")
 }
 ```
 
-If you install from GitHub Packages, add the repository:
+Resolve the SDK from Maven Central:
 
 ```kotlin
 repositories {
-    maven {
-        url = uri("https://maven.pkg.github.com/SidebandAI/sideband-android")
-        credentials {
-            username = findProperty("gpr.user") as String?
-            password = findProperty("gpr.token") as String?
-        }
-    }
     google()
     mavenCentral()
 }
 ```
 
-Add GitHub Package credentials to `~/.gradle/gradle.properties`:
-
-```properties
-gpr.user=YOUR_GITHUB_USERNAME
-gpr.token=YOUR_GITHUB_TOKEN
-```
+Version `1.3.0-rc.1` moves the Maven group from `com.sideband` to `ai.sideband` and the Kotlin API from `com.sideband.sdk` to `ai.sideband.sdk`. No compatibility API for the old namespace is included.
 
 ### Configure
 
 Configure Sideband once when your app starts:
 
 ```kotlin
-import com.sideband.sdk.Sideband
-import com.sideband.sdk.core.ClientConfiguration
+import ai.sideband.sdk.Sideband
+import ai.sideband.sdk.core.ClientConfiguration
 
 Sideband.configure(
     ClientConfiguration(
@@ -66,7 +54,7 @@ Sideband.configure(
 Wrap your Compose app with `SidebandPulseHost`:
 
 ```kotlin
-import com.sideband.sdk.ui.SidebandPulseHost
+import ai.sideband.sdk.ui.SidebandPulseHost
 
 SidebandPulseHost {
     AppContent()
@@ -78,7 +66,7 @@ SidebandPulseHost {
 For Activity, Fragment, or XML/View apps, install the overlay into your View hierarchy:
 
 ```kotlin
-import com.sideband.sdk.ui.SidebandPulseOverlayView
+import ai.sideband.sdk.ui.SidebandPulseOverlayView
 
 class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -125,9 +113,9 @@ Sideband calls are fire-and-forget. Events are batched and synced in the backgro
 Use a delegate when you need to decide whether a pulse should appear now:
 
 ```kotlin
-import com.sideband.sdk.core.ClientDelegate
-import com.sideband.sdk.models.PendingPulse
-import com.sideband.sdk.models.PulsePresentationDecision
+import ai.sideband.sdk.core.ClientDelegate
+import ai.sideband.sdk.models.PendingPulse
+import ai.sideband.sdk.models.PulsePresentationDecision
 
 class PulseGate : ClientDelegate {
     override suspend fun clientShouldPresentPulse(
@@ -159,22 +147,22 @@ Add the WebView artifact at the same version as the core SDK:
 
 ```kotlin
 dependencies {
-    implementation("com.sideband:sideband-android:1.2.1")
-    implementation("com.sideband:sideband-android-webview:1.2.1")
+    implementation("ai.sideband:sideband-android:1.3.0-rc.1")
+    implementation("ai.sideband:sideband-android-webview:1.3.0-rc.1")
 }
 ```
 
-The bridge is not part of `com.sideband:sideband-android`. It ships as a Maven artifact and as source under `Sources/SidebandWebView/` on the same public release.
+The bridge is not part of `ai.sideband:sideband-android`. It ships as a Maven artifact and as source under `Sources/SidebandWebView/` on the same public release.
 
 ### Install the Bridge and Pulse Overlay
 
 Configure Sideband, enable JavaScript, install the bridge before the WebView's first `load`, and install the native pulse overlay. Installation requires a non-empty allowlist of exact `http` or `https` origins. The bridge does not enable JavaScript.
 
 ```kotlin
-import com.sideband.sdk.Sideband
-import com.sideband.sdk.core.ClientConfiguration
-import com.sideband.sdk.ui.SidebandPulseOverlayView
-import com.sideband.sdk.webview.installWebViewBridge
+import ai.sideband.sdk.Sideband
+import ai.sideband.sdk.core.ClientConfiguration
+import ai.sideband.sdk.ui.SidebandPulseOverlayView
+import ai.sideband.sdk.webview.installWebViewBridge
 
 Sideband.configure(
     ClientConfiguration(
