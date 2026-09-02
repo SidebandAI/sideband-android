@@ -17,7 +17,7 @@ Add the SDK dependency:
 
 ```kotlin
 dependencies {
-    implementation("ai.sideband:sideband-android:1.3.0-rc.1")
+    implementation("ai.sideband:sideband-android:1.3.0")
 }
 ```
 
@@ -30,7 +30,7 @@ repositories {
 }
 ```
 
-Version `1.3.0-rc.1` moves the Maven group from `com.sideband` to `ai.sideband` and the Kotlin API from `com.sideband.sdk` to `ai.sideband.sdk`. No compatibility API for the old namespace is included.
+Version `1.3.0` moves the Maven group from `com.sideband` to `ai.sideband` and the Kotlin API from `com.sideband.sdk` to `ai.sideband.sdk`. No compatibility API for the old namespace is included.
 
 ### Configure
 
@@ -147,8 +147,8 @@ Add the WebView artifact at the same version as the core SDK:
 
 ```kotlin
 dependencies {
-    implementation("ai.sideband:sideband-android:1.3.0-rc.1")
-    implementation("ai.sideband:sideband-android-webview:1.3.0-rc.1")
+    implementation("ai.sideband:sideband-android:1.3.0")
+    implementation("ai.sideband:sideband-android-webview:1.3.0")
 }
 ```
 
