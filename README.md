@@ -17,7 +17,7 @@ Add the SDK dependency:
 
 ```kotlin
 dependencies {
-    implementation("ai.sideband:sideband-android:1.3.1")
+    implementation("ai.sideband:sideband-android:1.4.0")
 }
 ```
 
@@ -108,6 +108,51 @@ Sideband.untagUser()
 
 Sideband calls are fire-and-forget. Events are batched and synced in the background.
 
+### Event Metadata and Pulse Targeting
+
+Pass metadata to `track` as string key-value pairs. Use metadata to describe an
+event without creating a separate event name for each source, item type, or mode.
+Only these six keys support Pulse trigger filters and event-history conditions:
+
+| Key | Value format | Example |
+| --- | --- | --- |
+| `source` | String | `"home"` |
+| `item_type` | String | `"article"` |
+| `mode` | String | `"manual"` |
+| `variant` | String | `"control"` |
+| `count` | Integer sent as a string | `"3"` |
+| `duration` | Seconds sent as a string; fractions allowed | `"12.5"` |
+
+Use the exact lowercase key names. The server trims and lowercases values for
+`source`, `item_type`, `mode`, and `variant`. These keys support equals and
+not-equals comparisons. It compares `count` and `duration` numerically, with
+equals, not-equals, greater-than, greater-than-or-equal, less-than, and
+less-than-or-equal comparisons. Send `duration` in seconds, not milliseconds.
+
+```kotlin
+Sideband.track(
+    eventName = "content_created",
+    metadata = mapOf(
+        "source" to "editor",
+        "item_type" to "article",
+        "count" to "3",
+        "duration" to "12.5",
+        "content_id" to "article-123",
+    ),
+)
+```
+
+Custom keys such as `content_id`, `screen`, or `plan` are stored unchanged, but
+cannot be used in Pulse targeting filters. A missing key does not match any
+filter, including not-equals.
+
+The server stores at most 20 metadata properties per event. It keeps valid
+targeting keys first, then fills the remaining slots with custom keys in sorted
+key order. It drops empty keys and invalid targeting values without rejecting
+the event. For example, `count: "3.5"` and `count: "3.0"` are invalid; use
+`count: "3"`. Normalization and numeric comparison happen on the server, not in
+the SDK. These rules also apply to events sent through the WebView/GTM bridge.
+
 ### Control Pulse Presentation
 
 Use a delegate when you need to decide whether a pulse should appear now:
@@ -147,8 +192,8 @@ Add the WebView artifact at the same version as the core SDK:
 
 ```kotlin
 dependencies {
-    implementation("ai.sideband:sideband-android:1.3.1")
-    implementation("ai.sideband:sideband-android-webview:1.3.1")
+    implementation("ai.sideband:sideband-android:1.4.0")
+    implementation("ai.sideband:sideband-android-webview:1.4.0")
 }
 ```
 
